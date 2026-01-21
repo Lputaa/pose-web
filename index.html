@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pose Estimation Pro</title>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            min-height: 100vh;
+            color: #e2e8f0;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(102, 126, 234, 0.3);
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #fff 0%, #e0e7ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.95;
+            color: #e0e7ff;
+        }
+        
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .video-section {
+            background: #1e293b;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            border: 1px solid #334155;
+        }
+        
+        .video-container {
+            position: relative;
+            width: 100%;
+            padding-bottom: 75%;
+            background: #000;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+        }
+        
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .placeholder {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #64748b;
+        }
+        
+        .placeholder-icon {
+            font-size: 4rem;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .btn-start {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+        
+        .btn-start:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+        }
+        
+        .btn-stop {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+        
+        .btn-stop:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+        }
+        
+        .btn-download {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+        
+        .btn-download:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+        }
+        
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .angles-panel {
+            background: #1e293b;
+            border-radius: 20px;
+            padding: 25px;
+            border: 1px solid #334155;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+        
+        .panel-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #f1f5f9;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .angle-card {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 15px;
+            border: 1px solid #334155;
+            transition: all 0.3s ease;
+        }
+        
+        .angle-card:hover {
+            transform: translateX(5px);
+            border-color: #475569;
+        }
+        
+        .angle-card:last-child {
+            margin-bottom: 0;
+        }
+        
+        .angle-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .angle-label {
+            font-size: 0.95rem;
+            color: #94a3b8;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .angle-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .angle-bar {
+            height: 8px;
+            background: #334155;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .angle-bar-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .stats-panel {
+            background: #1e293b;
+            border-radius: 20px;
+            padding: 25px;
+            border: 1px solid #334155;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #334155;
+        }
+        
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-label {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+        
+        .stat-value {
+            font-weight: 700;
+            color: #667eea;
+            font-size: 1.1rem;
+        }
+        
+        .chart-section {
+            background: #1e293b;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            border: 1px solid #334155;
+        }
+        
+        .chart-title {
+            color: #f1f5f9;
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        #kneeChart, #hipChart {
+            width: 100%;
+            height: 300px;
+        }
+        
+        .status-message {
+            padding: 18px 24px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+            text-align: center;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        
+        .status-loading {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+        
+        .status-error {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+        
+        .status-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+        
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .footer {
+            text-align: center;
+            color: #64748b;
+            margin-top: 40px;
+            padding: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 10px;
+        }
+        
+        .footer-link {
+            color: #667eea;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        
+        .footer-link:hover {
+            color: #764ba2;
+        }
+        
+        .color-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        
+        .color-blue { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
+        .color-green { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .color-purple { background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); }
+        .color-pink { background: linear-gradient(135deg, #ec4899 0%, #db2777 100%); }
+        
+        @media (max-width: 1200px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                grid-column: 1;
+            }
+            
+            .angles-panel {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+            }
+            
+            .panel-title {
+                grid-column: 1 / -1;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 { 
+                font-size: 1.8rem; 
+            }
+            
+            .angles-panel {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+            
+            button {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Pose Estimation Pro</h1>
+            <p>Advanced Real-time Joint Angle Analysis</p>
+        </div>
+
+        <div id="statusMessage"></div>
+
+        <div class="main-grid">
+            <div class="video-section">
+                <div class="video-container">
+                    <canvas id="canvas"></canvas>
+                    <div class="placeholder" id="placeholder">
+                        <div class="placeholder-icon">📷</div>
+                        <div style="font-size: 1.1rem; font-weight: 500;">Camera Inactive</div>
+                        <div style="font-size: 0.9rem; margin-top: 8px; opacity: 0.7;">Click Start Camera to begin</div>
+                    </div>
+                </div>
+
+                <div class="controls">
+                    <button id="startBtn" class="btn-start" disabled>
+                        <span>▶</span> Start Camera
+                    </button>
+                    <button id="stopBtn" class="btn-stop" style="display: none;">
+                        <span>⏹</span> Stop Camera
+                    </button>
+                    <button id="downloadBtn" class="btn-download" style="display: none;">
+                        <span>⬇</span> Download CSV
+                    </button>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="angles-panel">
+                    <div class="panel-title">
+                        📊 Joint Angles
+                    </div>
+                    
+                    <div class="angle-card">
+                        <div class="angle-header">
+                            <div class="angle-label">
+                                <span class="color-indicator color-blue"></span>
+                                Left Knee
+                            </div>
+                        </div>
+                        <div class="angle-value"><span id="leftKnee">0</span>°</div>
+                        <div class="angle-bar">
+                            <div class="angle-bar-fill" id="leftKneeBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="angle-card">
+                        <div class="angle-header">
+                            <div class="angle-label">
+                                <span class="color-indicator color-green"></span>
+                                Right Knee
+                            </div>
+                        </div>
+                        <div class="angle-value"><span id="rightKnee">0</span>°</div>
+                        <div class="angle-bar">
+                            <div class="angle-bar-fill" id="rightKneeBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="angle-card">
+                        <div class="angle-header">
+                            <div class="angle-label">
+                                <span class="color-indicator color-purple"></span>
+                                Left Hip
+                            </div>
+                        </div>
+                        <div class="angle-value"><span id="leftHip">0</span>°</div>
+                        <div class="angle-bar">
+                            <div class="angle-bar-fill" id="leftHipBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="angle-card">
+                        <div class="angle-header">
+                            <div class="angle-label">
+                                <span class="color-indicator color-pink"></span>
+                                Right Hip
+                            </div>
+                        </div>
+                        <div class="angle-value"><span id="rightHip">0</span>°</div>
+                        <div class="angle-bar">
+                            <div class="angle-bar-fill" id="rightHipBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stats-panel">
+                    <div class="panel-title">
+                        📈 Statistics
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Data Points</span>
+                        <span class="stat-value" id="dataPoints">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Recording Time</span>
+                        <span class="stat-value" id="recordingTime">0s</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Frame Rate</span>
+                        <span class="stat-value" id="frameRate">0 FPS</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-section" id="kneeChartSection" style="display: none;">
+            <div class="chart-title">
+                <span>📊</span> Knee Angles Over Time
+            </div>
+            <canvas id="kneeChart"></canvas>
+        </div>
+
+        <div class="chart-section" id="hipChartSection" style="display: none;">
+            <div class="chart-title">
+                <span>📊</span> Hip Angles Over Time
+            </div>
+            <canvas id="hipChart"></canvas>
+        </div>
+
+        <div class="footer">
+            <p>✅ Compatible with mobile and desktop browsers</p>
+            <p>🎥 Requires camera access (HTTPS or localhost)</p>
+            <div class="footer-links">
+                <span style="opacity: 0.5;">Powered by TensorFlow.js & MoveNet</span>
+            </div>
+        </div>
+    </div>
+
+    <video id="video" style="display: none;" playsinline></video>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.0/dist/pose-detection.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <script>
+        let detector = null;
+        let video = null;
+        let canvas = null;
+        let ctx = null;
+        let animationId = null;
+        let isActive = false;
+        let chartData = [];
+        let kneeChart = null;
+        let hipChart = null;
+        let startTime = null;
+        let frameCount = 0;
+        let lastFpsUpdate = 0;
+        const MAX_DATA_POINTS = 100;
+
+        function showStatus(message, type = 'loading') {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.className = `status-message status-${type}`;
+            statusDiv.innerHTML = type === 'loading' 
+                ? `<span class="spinner"></span>${message}`
+                : message;
+            statusDiv.style.display = 'flex';
+        }
+
+        function hideStatus() {
+            document.getElementById('statusMessage').style.display = 'none';
+        }
+
+        function calculateAngle(a, b, c) {
+            const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+            let angle = Math.abs(radians * 180.0 / Math.PI);
+            return angle > 180 ? 360 - angle : angle;
+        }
+
+        function updateStats() {
+            document.getElementById('dataPoints').textContent = chartData.length;
+            
+            if (startTime) {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                document.getElementById('recordingTime').textContent = elapsed + 's';
+            }
+            
+            const now = Date.now();
+            if (now - lastFpsUpdate > 1000) {
+                const fps = frameCount;
+                document.getElementById('frameRate').textContent = fps + ' FPS';
+                frameCount = 0;
+                lastFpsUpdate = now;
+            }
+            frameCount++;
+        }
+
+        function initCharts() {
+            const chartConfig = {
+                type: 'line',
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 0 },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    scales: {
+                        x: { 
+                            display: true,
+                            grid: { 
+                                color: '#334155',
+                                drawBorder: false
+                            },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        y: { 
+                            min: 0, 
+                            max: 180,
+                            grid: { 
+                                color: '#334155',
+                                drawBorder: false
+                            },
+                            ticks: { color: '#94a3b8' }
+                        }
+                    },
+                    plugins: {
+                        legend: { 
+                            labels: { 
+                                color: '#e2e8f0',
+                                font: { size: 13, weight: '600' },
+                                padding: 15,
+                                usePointStyle: true,
+                                pointStyle: 'circle'
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: '#1e293b',
+                            titleColor: '#f1f5f9',
+                            bodyColor: '#e2e8f0',
+                            borderColor: '#334155',
+                            borderWidth: 1,
+                            padding: 12,
+                            displayColors: true,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + Math.round(context.parsed.y) + '°';
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+
+            kneeChart = new Chart(document.getElementById('kneeChart'), {
+                ...chartConfig,
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Left Knee',
+                            data: [],
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            pointHoverRadius: 5
+                        },
+                        {
+                            label: 'Right Knee',
+                            data: [],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            pointHoverRadius: 5
+                        }
+                    ]
+                }
+            });
+
+            hipChart = new Chart(document.getElementById('hipChart'), {
+                ...chartConfig,
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Left Hip',
+                            data: [],
+                            borderColor: '#8b5cf6',
+                            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            pointHoverRadius: 5
+                        },
+                        {
+                            label: 'Right Hip',
+                            data: [],
+                            borderColor: '#ec4899',
+                            backgroundColor: 'rgba(236, 72, 153, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            pointHoverRadius: 5
+                        }
+                    ]
+                }
+            });
+        }
+
+        function updateCharts(angles) {
+            chartData.push(angles);
+            if (chartData.length > MAX_DATA_POINTS) {
+                chartData.shift();
+            }
+
+            const labels = chartData.map((_, i) => i);
+            
+            kneeChart.data.labels = labels;
+            kneeChart.data.datasets[0].data = chartData.map(d => d.leftKnee);
+            kneeChart.data.datasets[1].data = chartData.map(d => d.rightKnee);
+            kneeChart.update('none');
+
+            hipChart.data.labels = labels;
+            hipChart.data.datasets[0].data = chartData.map(d => d.leftHip);
+            hipChart.data.datasets[1].data = chartData.map(d => d.rightHip);
+            hipChart.update('none');
+
+            document.getElementById('kneeChartSection').style.display = 'block';
+            document.getElementById('hipChartSection').style.display = 'block';
+            document.getElementById('downloadBtn').style.display = 'flex';
+        }
+
+        function drawSkeleton(keypoints) {
+            const connections = [
+                [5, 6], [5, 7], [7, 9], [6, 8], [8, 10],
+                [5, 11], [6, 12], [11, 12],
+                [11, 13], [13, 15], [12, 14], [14, 16]
+            ];
+
+            const minConfidence = 0.3;
+
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 4;
+            ctx.shadowColor = 'rgba(16, 185, 129, 0.5)';
+            ctx.shadowBlur = 10;
+            
+            connections.forEach(([i, j]) => {
+                const kp1 = keypoints[i];
+                const kp2 = keypoints[j];
+                
+                if (kp1.score > minConfidence && kp2.score > minConfidence) {
+                    ctx.beginPath();
+                    ctx.moveTo(kp1.x, kp1.y);
+                    ctx.lineTo(kp2.x, kp2.y);
+                    ctx.stroke();
+                }
+            });
+
+            ctx.shadowBlur = 0;
+
+            keypoints.forEach(kp => {
+                if (kp.score > minConfidence) {
+                    ctx.fillStyle = '#667eea';
+                    ctx.beginPath();
+                    ctx.arc(kp.x, kp.y, 8, 0, 2 * Math.PI);
+                    ctx.fill();
+                    
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                }
+            });
+        }
+
+        function updateAngleDisplay(angles) {
+            document.getElementById('leftKnee').textContent = Math.round(angles.leftKnee);
+            document.getElementById('rightKnee').textContent = Math.round(angles.rightKnee);
+            document.getElementById('leftHip').textContent = Math.round(angles.leftHip);
+            document.getElementById('rightHip').textContent = Math.round(angles.rightHip);
+            
+            document.getElementById('leftKneeBar').style.width = (angles.leftKnee / 180 * 100) + '%';
+            document.getElementById('rightKneeBar').style.width = (angles.rightKnee / 180 * 100) + '%';
+            document.getElementById('leftHipBar').style.width = (angles.leftHip / 180 * 100) + '%';
+            document.getElementById('rightHipBar').style.width = (angles.rightHip / 180 * 100) + '%';
+        }
+
+        async function detectPose() {
+            if (!isActive || !video || !detector) return;
+
+            if (video.readyState === 4) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                try {
+                    const poses = await detector.estimatePoses(video);
+                    
+                    if (poses.length > 0) {
+                        const keypoints = poses[0].keypoints;
+                        
+                        drawSkeleton(keypoints);
+                        
+                        const angles = {
+                            leftKnee: calculateAngle(keypoints[11], keypoints[13], keypoints[15]),
+                            rightKnee: calculateAngle(keypoints[12], keypoints[14], keypoints[16]),
+                            leftHip: calculateAngle(keypoints[5], keypoints[11], keypoints[13]),
+                            rightHip: calculateAngle(keypoints[6], keypoints[12], keypoints[14])
+                        };
+
+                        updateAngleDisplay(angles);
+                        updateCharts(angles);
+                        updateStats();
+                    }
+                } catch (err) {
+                    console.error('Pose detection error:', err);
+                }
+            }
+
+            animationId = requestAnimationFrame(detectPose);
+        }
+
+        async function startCamera() {
+            try {
+                hideStatus();
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: 'user',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+                
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    video.play();
+                    isActive = true;
+                    startTime = Date.now();
+                    lastFpsUpdate = Date.now();
+                    document.getElementById('placeholder').style.display = 'none';
+                    document.getElementById('startBtn').style.display = 'none';
+                    document.getElementById('stopBtn').style.display = 'flex';
+                    detectPose();
+                };
+            } catch (err) {
+                showStatus('❌ Camera access denied. Please allow camera access and refresh.', 'error');
+                console.error('Camera error:', err);
+            }
+        }
+
+        function stopCamera() {
+            isActive = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
+            startTime = null;
+            document.getElementById('placeholder').style.display = 'block';
+            document.getElementById('startBtn').style.display = 'flex';
+            document.getElementById('stopBtn').style.display = 'none';
+        }
+
+        function downloadCSV() {
+            const csv = [
+                'Time,Left Knee,Right Knee,Left Hip,Right Hip',
+                ...chartData.map((d, i) => 
+                    `${i},${Math.round(d.leftKnee)},${Math.round(d.rightKnee)},${Math.round(d.leftHip)},${Math.round(d.rightHip)}`
+                )
+            ].join('\n');
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `pose_data_${Date.now()}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        async function init() {
+            showStatus('⏳ Loading TensorFlow.js and Pose Detection model...', 'loading');
+            
+            video = document.getElementById('video');
+            canvas = document.getElementById('canvas');
+            ctx = canvas.getContext('2d');
+
+            try {
+                await tf.ready();
+                showStatus('🔄 Creating pose detector...', 'loading');
+                
+                detector = await poseDetection.createDetector(
+                    poseDetection.SupportedModels.MoveNet,
+                    {
+                        modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
+                        enableSmoothing: true
+                    }
+                );
+
+                initCharts();
+                showStatus('✅ Ready! Click Start Camera to begin.', 'success');
+                setTimeout(hideStatus, 3000);
+                document.getElementById('startBtn').disabled = false;
+                
+            } catch (err) {
+                showStatus('❌ Failed to load model: ' + err.message, 'error');
+                console.error('Init error:', err);
+            }
+        }
+
+        document.getElementById('startBtn').addEventListener('click', startCamera);
+        document.getElementById('stopBtn').addEventListener('click', stopCamera);
+        document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
+
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
