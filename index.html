@@ -292,6 +292,13 @@
         #kneeChart, #hipChart {
             width: 100%;
             height: 300px;
+            aspect-ratio: 2/1;
+        }
+        
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
         }
         
         .status-message {
@@ -433,9 +440,7 @@
                 </div>
 
                 <div class="controls">
-                    <button id="switchBtn" class="btn-download" style="display:none;">
-                    <span>🔄</span> Switch Camera
-                    </button>
+                    
                     <button id="startBtn" class="btn-start" disabled>
                         <span>▶</span> Start Camera
                     </button>
@@ -531,14 +536,18 @@
             <div class="chart-title">
                 <span>📊</span> Knee Angles Over Time
             </div>
-            <canvas id="kneeChart"></canvas>
+            <div class="chart-container">
+                <canvas id="kneeChart"></canvas>
+            </div>
         </div>
 
         <div class="chart-section" id="hipChartSection" style="display: none;">
             <div class="chart-title">
                 <span>📊</span> Hip Angles Over Time
             </div>
-            <canvas id="hipChart"></canvas>
+            <div class="chart-container">
+                <canvas id="hipChart"></canvas>
+            </div>
         </div>
 
         <div class="footer">
@@ -569,7 +578,9 @@
         let startTime = null;
         let frameCount = 0;
         let lastFpsUpdate = 0;
+        let lastChartUpdate = 0;
         const MAX_DATA_POINTS = 100;
+        const CHART_UPDATE_INTERVAL = 100; // Update charts every 100ms
 
         function showStatus(message, type = 'loading') {
             const statusDiv = document.getElementById('statusMessage');
@@ -609,53 +620,56 @@
         }
 
         function initCharts() {
-            const chartConfig = {
+            // Fixed-width chart configuration to prevent stretching
+            const fixedChartConfig = {
                 type: 'line',
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false,
-                    animation: { duration: 0 },
-                    interaction: {
-                        intersect: false,
-                        mode: 'index'
-                    },
+                    maintainAspectRatio: true,
+                    aspectRatio: 2,
+                    animation: false,
                     scales: {
                         x: { 
                             display: true,
                             grid: { 
                                 color: '#334155',
-                                drawBorder: false
+                                display: true
                             },
-                            ticks: { color: '#94a3b8' }
+                            ticks: { 
+                                color: '#94a3b8',
+                                maxTicksLimit: 10,
+                                autoSkip: true,
+                                maxRotation: 0
+                            }
                         },
                         y: { 
                             min: 0, 
                             max: 180,
                             grid: { 
-                                color: '#334155',
-                                drawBorder: false
+                                color: '#334155'
                             },
-                            ticks: { color: '#94a3b8' }
+                            ticks: { 
+                                color: '#94a3b8',
+                                callback: function(value) {
+                                    return value + '°';
+                                }
+                            }
                         }
                     },
                     plugins: {
                         legend: { 
                             labels: { 
                                 color: '#e2e8f0',
-                                font: { size: 13, weight: '600' },
-                                padding: 15,
-                                usePointStyle: true,
-                                pointStyle: 'circle'
+                                font: { size: 12 }
                             }
                         },
                         tooltip: {
-                            backgroundColor: '#1e293b',
+                            enabled: true,
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(30, 41, 59, 0.9)',
                             titleColor: '#f1f5f9',
                             bodyColor: '#e2e8f0',
-                            borderColor: '#334155',
-                            borderWidth: 1,
-                            padding: 12,
-                            displayColors: true,
                             callbacks: {
                                 label: function(context) {
                                     return context.dataset.label + ': ' + Math.round(context.parsed.y) + '°';
@@ -667,7 +681,7 @@
             };
 
             kneeChart = new Chart(document.getElementById('kneeChart'), {
-                ...chartConfig,
+                ...fixedChartConfig,
                 data: {
                     labels: [],
                     datasets: [
@@ -675,28 +689,26 @@
                             label: 'Left Knee',
                             data: [],
                             borderColor: '#3b82f6',
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
                             borderWidth: 2,
-                            tension: 0.4,
                             pointRadius: 0,
-                            pointHoverRadius: 5
+                            fill: false,
+                            tension: 0.1
                         },
                         {
                             label: 'Right Knee',
                             data: [],
                             borderColor: '#10b981',
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
                             borderWidth: 2,
-                            tension: 0.4,
                             pointRadius: 0,
-                            pointHoverRadius: 5
+                            fill: false,
+                            tension: 0.1
                         }
                     ]
                 }
             });
 
             hipChart = new Chart(document.getElementById('hipChart'), {
-                ...chartConfig,
+                ...fixedChartConfig,
                 data: {
                     labels: [],
                     datasets: [
@@ -704,21 +716,19 @@
                             label: 'Left Hip',
                             data: [],
                             borderColor: '#8b5cf6',
-                            backgroundColor: 'rgba(139, 92, 246, 0.1)',
                             borderWidth: 2,
-                            tension: 0.4,
                             pointRadius: 0,
-                            pointHoverRadius: 5
+                            fill: false,
+                            tension: 0.1
                         },
                         {
                             label: 'Right Hip',
                             data: [],
                             borderColor: '#ec4899',
-                            backgroundColor: 'rgba(236, 72, 153, 0.1)',
                             borderWidth: 2,
-                            tension: 0.4,
                             pointRadius: 0,
-                            pointHoverRadius: 5
+                            fill: false,
+                            tension: 0.1
                         }
                     ]
                 }
@@ -731,16 +741,37 @@
                 chartData.shift();
             }
 
+            // Create labels based on actual time or index
             const labels = chartData.map((_, i) => i);
             
-            kneeChart.data.labels = labels;
-            kneeChart.data.datasets[0].data = chartData.map(d => d.leftKnee);
-            kneeChart.data.datasets[1].data = chartData.map(d => d.rightKnee);
+            // Limit the number of points displayed in charts
+            const maxDisplayPoints = 50;
+            let displayLabels, displayLeftKnee, displayRightKnee, displayLeftHip, displayRightHip;
+            
+            if (chartData.length > maxDisplayPoints) {
+                // Show only the latest data points
+                const startIndex = chartData.length - maxDisplayPoints;
+                displayLabels = labels.slice(startIndex);
+                displayLeftKnee = chartData.slice(startIndex).map(d => d.leftKnee);
+                displayRightKnee = chartData.slice(startIndex).map(d => d.rightKnee);
+                displayLeftHip = chartData.slice(startIndex).map(d => d.leftHip);
+                displayRightHip = chartData.slice(startIndex).map(d => d.rightHip);
+            } else {
+                displayLabels = labels;
+                displayLeftKnee = chartData.map(d => d.leftKnee);
+                displayRightKnee = chartData.map(d => d.rightKnee);
+                displayLeftHip = chartData.map(d => d.leftHip);
+                displayRightHip = chartData.map(d => d.rightHip);
+            }
+
+            kneeChart.data.labels = displayLabels;
+            kneeChart.data.datasets[0].data = displayLeftKnee;
+            kneeChart.data.datasets[1].data = displayRightKnee;
             kneeChart.update('none');
 
-            hipChart.data.labels = labels;
-            hipChart.data.datasets[0].data = chartData.map(d => d.leftHip);
-            hipChart.data.datasets[1].data = chartData.map(d => d.rightHip);
+            hipChart.data.labels = displayLabels;
+            hipChart.data.datasets[0].data = displayLeftHip;
+            hipChart.data.datasets[1].data = displayRightHip;
             hipChart.update('none');
 
             document.getElementById('kneeChartSection').style.display = 'block';
@@ -837,17 +868,26 @@
 
             animationId = requestAnimationFrame(detectPose);
         }
-        let currentFacing = 'user';
+
+        // Helper function to detect mobile devices
+        function isMobileDevice() {
+            return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+
         async function startCamera() {
             try {
                 hideStatus();
-const stream = await navigator.mediaDevices.getUserMedia({
-    video: { 
-        facingMode: { exact: 'environment' },
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-    }
-});
+                
+                // Determine facing mode based on device type
+                const facingMode = isMobileDevice() ? { exact: 'environment' } : 'user';
+                
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: facingMode,
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
                 
                 video.srcObject = stream;
                 video.onloadedmetadata = () => {
@@ -855,7 +895,6 @@ const stream = await navigator.mediaDevices.getUserMedia({
                     isActive = true;
                     startTime = Date.now();
                     lastFpsUpdate = Date.now();
-                    document.getElementById('switchBtn').style.display = 'flex';
                     document.getElementById('placeholder').style.display = 'none';
                     document.getElementById('startBtn').style.display = 'none';
                     document.getElementById('stopBtn').style.display = 'flex';
@@ -868,15 +907,6 @@ const stream = await navigator.mediaDevices.getUserMedia({
         }
 
         function stopCamera() {
-            async function switchCamera() {
-    const btn = document.getElementById('switchBtn');
-    if (!btn) return;
-    if (!video || !video.srcObject) return;
-    currentFacing = currentFacing === 'user' ? 'environment' : 'user';
-    stopCamera();
-    await startCamera();
-}
-
             isActive = false;
             if (animationId) {
                 cancelAnimationFrame(animationId);
@@ -937,14 +967,12 @@ const stream = await navigator.mediaDevices.getUserMedia({
                 console.error('Init error:', err);
             }
         }
-window.addEventListener('load', () => {
-    init();
 
-    document.getElementById('startBtn').addEventListener('click', startCamera);
-    document.getElementById('stopBtn').addEventListener('click', stopCamera);
-    document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
-    document.getElementById('switchBtn').addEventListener('click', switchCamera);
-});
+        document.getElementById('startBtn').addEventListener('click', startCamera);
+        document.getElementById('stopBtn').addEventListener('click', stopCamera);
+        document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
+
+        window.addEventListener('load', init);
     </script>
 </body>
 </html>
