@@ -869,6 +869,8 @@ const stream = await navigator.mediaDevices.getUserMedia({
 
         function stopCamera() {
             async function switchCamera() {
+    const btn = document.getElementById('switchBtn');
+    if (!btn) return;
     if (!video || !video.srcObject) return;
     currentFacing = currentFacing === 'user' ? 'environment' : 'user';
     stopCamera();
@@ -935,12 +937,14 @@ const stream = await navigator.mediaDevices.getUserMedia({
                 console.error('Init error:', err);
             }
         }
+window.addEventListener('load', () => {
+    init();
 
-        document.getElementById('startBtn').addEventListener('click', startCamera);
-        document.getElementById('stopBtn').addEventListener('click', stopCamera);
-        document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
-        
-        window.addEventListener('load', init);
+    document.getElementById('startBtn').addEventListener('click', startCamera);
+    document.getElementById('stopBtn').addEventListener('click', stopCamera);
+    document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
+    document.getElementById('switchBtn').addEventListener('click', switchCamera);
+});
     </script>
 </body>
 </html>
