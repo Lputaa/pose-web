@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pose Estimation Pro</title>
+    <title>Sprint Detection</title>
     
     <style>
         * {
@@ -82,7 +82,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
         }
         
         .placeholder {
@@ -135,6 +135,28 @@
         .btn-start:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+        }
+        
+        .btn-upload {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn-upload:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
+        }
+        
+        .btn-upload input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
         }
         
         .btn-stop {
@@ -342,6 +364,22 @@
             to { transform: rotate(360deg); }
         }
         
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #334155;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        
         .footer {
             text-align: center;
             color: #64748b;
@@ -422,8 +460,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎯 Pose Estimation Pro</h1>
-            <p>Advanced Real-time Joint Angle Analysis</p>
+            <h1>🎯 Sprint Detection</h1>
+            <p>UAS pengolahan Citra</p>
         </div>
 
         <div id="statusMessage"></div>
@@ -434,21 +472,27 @@
                     <canvas id="canvas"></canvas>
                     <div class="placeholder" id="placeholder">
                         <div class="placeholder-icon">📷</div>
-                        <div style="font-size: 1.1rem; font-weight: 500;">Camera Inactive</div>
-                        <div style="font-size: 0.9rem; margin-top: 8px; opacity: 0.7;">Click Start Camera to begin</div>
+                        <div style="font-size: 1.1rem; font-weight: 500;">No Video Source</div>
+                        <div style="font-size: 0.9rem; margin-top: 8px; opacity: 0.7;">Start camera or upload a video</div>
                     </div>
                 </div>
 
                 <div class="controls">
-                    
                     <button id="startBtn" class="btn-start" disabled>
                         <span>▶</span> Start Camera
                     </button>
+                    <button id="uploadBtn" class="btn-upload" disabled>
+                        <span>📁</span> Upload Video
+                        <input type="file" id="videoFile" accept="video/*" disabled>
+                    </button>
                     <button id="stopBtn" class="btn-stop" style="display: none;">
-                        <span>⏹</span> Stop Camera
+                        <span>⏹</span> Stop
                     </button>
                     <button id="downloadBtn" class="btn-download" style="display: none;">
                         <span>⬇</span> Download CSV
+                    </button>
+                    <button id="downloadPdfBtn" class="btn-download" style="display: none;">
+                        <span>📄</span> Download PDF
                     </button>
                 </div>
             </div>
@@ -552,9 +596,9 @@
 
         <div class="footer">
             <p>✅ Compatible with mobile and desktop browsers</p>
-            <p>🎥 Requires camera access (HTTPS or localhost)</p>
+            <p>🎥 Supports live camera and video upload</p>
             <div class="footer-links">
-                <span style="opacity: 0.5;">Powered by TensorFlow.js & MoveNet</span>
+                <span style="opacity: 0.5;">Powered by Hayangsare Group</span>
             </div>
         </div>
     </div>
@@ -564,6 +608,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.0/dist/pose-detection.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
 
     <script>
         let detector = null;
@@ -578,17 +624,27 @@
         let startTime = null;
         let frameCount = 0;
         let lastFpsUpdate = 0;
-        let lastChartUpdate = 0;
-        const MAX_DATA_POINTS = 100;
-        const CHART_UPDATE_INTERVAL = 100; // Update charts every 100ms
+        let isProcessingVideo = false;
+        let videoMode = 'camera'; // 'camera' or 'upload'
+        const MAX_DATA_POINTS = 1000;
 
         function showStatus(message, type = 'loading') {
             const statusDiv = document.getElementById('statusMessage');
             statusDiv.className = `status-message status-${type}`;
-            statusDiv.innerHTML = type === 'loading' 
-                ? `<span class="spinner"></span>${message}`
-                : message;
+            
+            if (type === 'loading') {
+                statusDiv.innerHTML = `<span class="spinner"></span>${message}<div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>`;
+            } else {
+                statusDiv.innerHTML = message;
+            }
             statusDiv.style.display = 'flex';
+        }
+
+        function updateProgress(percent) {
+            const progressFill = document.getElementById('progressFill');
+            if (progressFill) {
+                progressFill.style.width = percent + '%';
+            }
         }
 
         function hideStatus() {
@@ -604,7 +660,7 @@
         function updateStats() {
             document.getElementById('dataPoints').textContent = chartData.length;
             
-            if (startTime) {
+            if (startTime && !isProcessingVideo) {
                 const elapsed = Math.floor((Date.now() - startTime) / 1000);
                 document.getElementById('recordingTime').textContent = elapsed + 's';
             }
@@ -620,7 +676,6 @@
         }
 
         function initCharts() {
-            // Fixed-width chart configuration to prevent stretching
             const fixedChartConfig = {
                 type: 'line',
                 options: {
@@ -741,15 +796,11 @@
                 chartData.shift();
             }
 
-            // Create labels based on actual time or index
             const labels = chartData.map((_, i) => i);
-            
-            // Limit the number of points displayed in charts
-            const maxDisplayPoints = 50;
+            const maxDisplayPoints = 100;
             let displayLabels, displayLeftKnee, displayRightKnee, displayLeftHip, displayRightHip;
             
             if (chartData.length > maxDisplayPoints) {
-                // Show only the latest data points
                 const startIndex = chartData.length - maxDisplayPoints;
                 displayLabels = labels.slice(startIndex);
                 displayLeftKnee = chartData.slice(startIndex).map(d => d.leftKnee);
@@ -777,6 +828,7 @@
             document.getElementById('kneeChartSection').style.display = 'block';
             document.getElementById('hipChartSection').style.display = 'block';
             document.getElementById('downloadBtn').style.display = 'flex';
+            document.getElementById('downloadPdfBtn').style.display = 'flex';
         }
 
         function drawSkeleton(keypoints) {
@@ -866,10 +918,62 @@
                 }
             }
 
-            animationId = requestAnimationFrame(detectPose);
+            if (videoMode === 'camera') {
+                animationId = requestAnimationFrame(detectPose);
+            }
         }
 
-        // Helper function to detect mobile devices
+        async function processVideoFrame() {
+            if (!isProcessingVideo || !video || !detector) return;
+
+            if (video.readyState === 4 && !video.ended) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                try {
+                    const poses = await detector.estimatePoses(video);
+                    
+                    if (poses.length > 0) {
+                        const keypoints = poses[0].keypoints;
+                        
+                        drawSkeleton(keypoints);
+                        
+                        const angles = {
+                            leftKnee: calculateAngle(keypoints[11], keypoints[13], keypoints[15]),
+                            rightKnee: calculateAngle(keypoints[12], keypoints[14], keypoints[16]),
+                            leftHip: calculateAngle(keypoints[5], keypoints[11], keypoints[13]),
+                            rightHip: calculateAngle(keypoints[6], keypoints[12], keypoints[14]),
+                            timestamp: video.currentTime
+                        };
+
+                        updateAngleDisplay(angles);
+                        updateCharts(angles);
+                        
+                        const progress = (video.currentTime / video.duration) * 100;
+                        updateProgress(progress);
+                        
+                        document.getElementById('recordingTime').textContent = 
+                            Math.floor(video.currentTime) + 's / ' + Math.floor(video.duration) + 's';
+                        document.getElementById('dataPoints').textContent = chartData.length;
+                    }
+                } catch (err) {
+                    console.error('Pose detection error:', err);
+                }
+
+                setTimeout(processVideoFrame, 33); // Process at ~30 FPS
+            } else if (video.ended) {
+                isProcessingVideo = false;
+                hideStatus();
+                showStatus('✅ Video processing complete! ' + chartData.length + ' data points captured.', 'success');
+                setTimeout(hideStatus, 3000);
+                document.getElementById('stopBtn').style.display = 'none';
+                document.getElementById('startBtn').style.display = 'flex';
+                document.getElementById('uploadBtn').style.display = 'flex';
+            }
+        }
+
         function isMobileDevice() {
             return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         }
@@ -877,8 +981,8 @@
         async function startCamera() {
             try {
                 hideStatus();
+                videoMode = 'camera';
                 
-                // Determine facing mode based on device type
                 const facingMode = isMobileDevice() ? { exact: 'environment' } : 'user';
                 
                 const stream = await navigator.mediaDevices.getUserMedia({
@@ -897,6 +1001,7 @@
                     lastFpsUpdate = Date.now();
                     document.getElementById('placeholder').style.display = 'none';
                     document.getElementById('startBtn').style.display = 'none';
+                    document.getElementById('uploadBtn').style.display = 'none';
                     document.getElementById('stopBtn').style.display = 'flex';
                     detectPose();
                 };
@@ -906,26 +1011,71 @@
             }
         }
 
+        async function handleVideoUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            try {
+                videoMode = 'upload';
+                chartData = [];
+                
+                showStatus('⏳ Loading video file...', 'loading');
+                
+                const url = URL.createObjectURL(file);
+                video.src = url;
+                
+                video.onloadedmetadata = () => {
+                    showStatus('🔄 Processing video: ' + file.name, 'loading');
+                    video.play();
+                    isProcessingVideo = true;
+                    document.getElementById('placeholder').style.display = 'none';
+                    document.getElementById('startBtn').style.display = 'none';
+                    document.getElementById('uploadBtn').style.display = 'none';
+                    document.getElementById('stopBtn').style.display = 'flex';
+                    processVideoFrame();
+                };
+
+                video.onerror = () => {
+                    showStatus('❌ Error loading video file.', 'error');
+                    URL.revokeObjectURL(url);
+                };
+            } catch (err) {
+                showStatus('❌ Error processing video: ' + err.message, 'error');
+                console.error('Video upload error:', err);
+            }
+        }
+
         function stopCamera() {
             isActive = false;
+            isProcessingVideo = false;
+            
             if (animationId) {
                 cancelAnimationFrame(animationId);
             }
+            
             if (video.srcObject) {
                 video.srcObject.getTracks().forEach(track => track.stop());
                 video.srcObject = null;
             }
+            
+            if (video.src) {
+                video.pause();
+                URL.revokeObjectURL(video.src);
+                video.src = '';
+            }
+            
             startTime = null;
             document.getElementById('placeholder').style.display = 'block';
             document.getElementById('startBtn').style.display = 'flex';
+            document.getElementById('uploadBtn').style.display = 'flex';
             document.getElementById('stopBtn').style.display = 'none';
         }
 
         function downloadCSV() {
             const csv = [
-                'Time,Left Knee,Right Knee,Left Hip,Right Hip',
+                'Frame,Timestamp,Left Knee,Right Knee,Left Hip,Right Hip',
                 ...chartData.map((d, i) => 
-                    `${i},${Math.round(d.leftKnee)},${Math.round(d.rightKnee)},${Math.round(d.leftHip)},${Math.round(d.rightHip)}`
+                    `${i},${d.timestamp || i},${Math.round(d.leftKnee)},${Math.round(d.rightKnee)},${Math.round(d.leftHip)},${Math.round(d.rightHip)}`
                 )
             ].join('\n');
             
@@ -936,6 +1086,138 @@
             a.download = `pose_data_${Date.now()}.csv`;
             a.click();
             URL.revokeObjectURL(url);
+        }
+
+        function downloadPDF() {
+            // Initialize jsPDF
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Calculate analysis data
+            const analysisData = calculateAnalysisData();
+            
+            // Add title
+            doc.setFontSize(22);
+            doc.setTextColor(52, 73, 94);
+            doc.text('.poseSprint Analysis Report', 105, 20, null, null, 'center');
+            
+            // Add subtitle
+            doc.setFontSize(12);
+            doc.setTextColor(127, 140, 141);
+            doc.text('Generated on ' + new Date().toLocaleDateString(), 105, 30, null, null, 'center');
+            
+            // Add analysis data
+            doc.setFontSize(14);
+            doc.setTextColor(52, 73, 94);
+            doc.text('Analysis Summary:', 20, 50);
+            
+            doc.setFontSize(12);
+            doc.setTextColor(0, 0, 0);
+            
+            // Add data rows
+            let yPosition = 65;
+            const lineHeight = 10;
+            
+            doc.text('Tanggal Analisis: ' + analysisData.date, 25, yPosition);
+            yPosition += lineHeight;
+            
+            doc.text('Durasi Sprint: ' + analysisData.duration + ' detik', 25, yPosition);
+            yPosition += lineHeight;
+            
+            doc.text('Rata-rata Fleksi: ' + analysisData.avgFlexion + '°', 25, yPosition);
+            yPosition += lineHeight;
+            
+            doc.text('Total Langkah: ' + analysisData.totalSteps, 25, yPosition);
+            yPosition += lineHeight;
+            
+            doc.text('Skor Performa: ' + analysisData.performanceScore + '/100', 25, yPosition);
+            yPosition += lineHeight;
+            
+            doc.text('Kategori: ' + analysisData.category, 25, yPosition);
+            
+            // Add chart images if available
+            yPosition += 20;
+            doc.text('Visual Analytics:', 20, yPosition);
+            
+            // Save the PDF
+            doc.save(`pose_analysis_${Date.now()}.pdf`);
+        }
+
+        function calculateAnalysisData() {
+            if (chartData.length === 0) {
+                return {
+                    date: new Date().toLocaleDateString(),
+                    duration: 0,
+                    avgFlexion: 0,
+                    totalSteps: 0,
+                    performanceScore: 0,
+                    category: 'Tidak cukup data'
+                };
+            }
+            
+            // Calculate duration (in seconds)
+            const duration = chartData.length > 1 ? 
+                (chartData[chartData.length - 1].timestamp || chartData.length - 1) - (chartData[0].timestamp || 0) : 0;
+            
+            // Calculate average flexion (average of all angles)
+            let totalAngle = 0;
+            chartData.forEach(data => {
+                totalAngle += data.leftKnee + data.rightKnee + data.leftHip + data.rightHip;
+            });
+            const avgFlexion = chartData.length > 0 ? 
+                (totalAngle / (chartData.length * 4)).toFixed(1) : 0;
+            
+            // Estimate steps (based on knee angle changes)
+            let steps = 0;
+            if (chartData.length > 1) {
+                let prevLeftKnee = chartData[0].leftKnee;
+                let prevRightKnee = chartData[0].rightKnee;
+                
+                for (let i = 1; i < chartData.length; i++) {
+                    const leftKneeChange = Math.abs(chartData[i].leftKnee - prevLeftKnee);
+                    const rightKneeChange = Math.abs(chartData[i].rightKnee - prevRightKnee);
+                    
+                    // If there's significant movement in knee angles, count as step
+                    if (leftKneeChange > 20 || rightKneeChange > 20) {
+                        steps++;
+                        prevLeftKnee = chartData[i].leftKnee;
+                        prevRightKnee = chartData[i].rightKnee;
+                    }
+                }
+            }
+            
+            // Calculate performance score (0-100)
+            let performanceScore = 0;
+            if (chartData.length > 0) {
+                // Base score on data quality and quantity
+                const dataQualityScore = Math.min(100, chartData.length); // Up to 100 points for data points
+                const avgAngles = parseFloat(avgFlexion);
+                const flexibilityScore = Math.min(50, avgAngles / 2); // Up to 50 points for flexibility
+                performanceScore = Math.round((dataQualityScore + flexibilityScore) / 2);
+            }
+            
+            // Determine category
+            let category = '';
+            if (performanceScore >= 80) {
+                category = 'Sangat Baik';
+            } else if (performanceScore >= 60) {
+                category = 'Baik';
+            } else if (performanceScore >= 40) {
+                category = 'Cukup';
+            } else if (performanceScore >= 20) {
+                category = 'Kurang';
+            } else {
+                category = 'Perlu Perbaikan';
+            }
+            
+            return {
+                date: new Date().toLocaleDateString(),
+                duration: duration.toFixed(1),
+                avgFlexion: avgFlexion,
+                totalSteps: steps,
+                performanceScore: performanceScore,
+                category: category
+            };
         }
 
         async function init() {
@@ -958,9 +1240,12 @@
                 );
 
                 initCharts();
-                showStatus('✅ Ready! Click Start Camera to begin.', 'success');
+                showStatus('✅ Ready! Start camera or upload a video.', 'success');
                 setTimeout(hideStatus, 3000);
+                
                 document.getElementById('startBtn').disabled = false;
+                document.getElementById('uploadBtn').disabled = false;
+                document.getElementById('videoFile').disabled = false;
                 
             } catch (err) {
                 showStatus('❌ Failed to load model: ' + err.message, 'error');
@@ -971,6 +1256,8 @@
         document.getElementById('startBtn').addEventListener('click', startCamera);
         document.getElementById('stopBtn').addEventListener('click', stopCamera);
         document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
+        document.getElementById('downloadPdfBtn').addEventListener('click', downloadPDF);
+        document.getElementById('videoFile').addEventListener('change', handleVideoUpload);
 
         window.addEventListener('load', init);
     </script>
