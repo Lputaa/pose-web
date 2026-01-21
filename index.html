@@ -433,6 +433,9 @@
                 </div>
 
                 <div class="controls">
+                    <button id="switchBtn" class="btn-download" style="display:none;">
+                    <span>🔄</span> Switch Camera
+                    </button>
                     <button id="startBtn" class="btn-start" disabled>
                         <span>▶</span> Start Camera
                     </button>
@@ -834,17 +837,17 @@
 
             animationId = requestAnimationFrame(detectPose);
         }
-
+        let currentFacing = 'user';
         async function startCamera() {
             try {
                 hideStatus();
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { 
-                        facingMode: 'user',
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    }
-                });
+const stream = await navigator.mediaDevices.getUserMedia({
+    video: { 
+        facingMode: { ideal: currentFacing },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+    }
+});
                 
                 video.srcObject = stream;
                 video.onloadedmetadata = () => {
@@ -852,6 +855,7 @@
                     isActive = true;
                     startTime = Date.now();
                     lastFpsUpdate = Date.now();
+                    document.getElementById('switchBtn').style.display = 'flex';
                     document.getElementById('placeholder').style.display = 'none';
                     document.getElementById('startBtn').style.display = 'none';
                     document.getElementById('stopBtn').style.display = 'flex';
@@ -864,6 +868,13 @@
         }
 
         function stopCamera() {
+            async function switchCamera() {
+    if (!video || !video.srcObject) return;
+    currentFacing = currentFacing === 'user' ? 'environment' : 'user';
+    stopCamera();
+    await startCamera();
+}
+
             isActive = false;
             if (animationId) {
                 cancelAnimationFrame(animationId);
@@ -928,7 +939,7 @@
         document.getElementById('startBtn').addEventListener('click', startCamera);
         document.getElementById('stopBtn').addEventListener('click', stopCamera);
         document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
-
+        
         window.addEventListener('load', init);
     </script>
 </body>
